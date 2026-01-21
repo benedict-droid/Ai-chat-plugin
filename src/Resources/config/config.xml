@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/shopware/platform/trunk/src/Core/System/SystemConfig/Schema/config.xsd">
+
+    <card>
+        <title>API Configuration</title>
+        <title lang="de-DE">API-Konfiguration</title>
+
+        <input-field type="bool">
+            <name>enabled</name>
+            <label>Enable Chat Widget</label>
+            <label lang="de-DE">Chat-Widget aktivieren</label>
+            <defaultValue>true</defaultValue>
+        </input-field>
+
+        <input-field type="text">
+            <name>apiEndpoint</name>
+            <label>API Endpoint URL</label>
+            <label lang="de-DE">API-Endpunkt-URL</label>
+            <placeholder>http://localhost:8000/chat</placeholder>
+            <defaultValue>http://localhost:8000/chat</defaultValue>
+            <helpText>The URL of your AI chat API endpoint</helpText>
+            <helpText lang="de-DE">Die URL Ihres KI-Chat-API-Endpunkts</helpText>
+        </input-field>
+
+        <input-field type="text">
+            <name>swAccessKey</name>
+            <label>Shopware Access Key</label>
+            <label lang="de-DE">Shopware-Zugriffsschlüssel</label>
+            <placeholder>SWSCAVBKV3VZOTFHUUR1QTJKUW</placeholder>
+            <helpText>Your Shopware store API access key</helpText>
+            <helpText lang="de-DE">Ihr Shopware-Shop-API-Zugriffsschlüssel</helpText>
+        </input-field>
+
+        <input-field type="text">
+            <name>chatTitle</name>
+            <label>Chat Title</label>
+            <label lang="de-DE">Chat-Titel</label>
+            <defaultValue>AI Assistant</defaultValue>
+            <helpText>Title shown in the chat widget header</helpText>
+            <helpText lang="de-DE">Titel im Chat-Widget-Header</helpText>
+        </input-field>
+
+        <input-field type="text">
+            <name>welcomeMessage</name>
+            <label>Welcome Message</label>
+            <label lang="de-DE">Willkommensnachricht</label>
+            <defaultValue>Hi! How can I help you today?</defaultValue>
+            <helpText>Initial message shown when chat opens</helpText>
+            <helpText lang="de-DE">Anfangsnachricht beim Öffnen des Chats</helpText>
+        </input-field>
+    </card>
+
+    <card>
+        <title>Appearance</title>
+        <title lang="de-DE">Erscheinungsbild</title>
+
+        <input-field type="colorpicker">
+            <name>primaryColor</name>
+            <label>Primary Color</label>
+            <label lang="de-DE">Primärfarbe</label>
+            <defaultValue>#007bff</defaultValue>
+        </input-field>
+
+        <input-field type="text">
+            <name>position</name>
+            <label>Widget Position</label>
+            <label lang="de-DE">Widget-Position</label>
+            <defaultValue>bottom-right</defaultValue>
+            <helpText>Position of the chat button: bottom-right, bottom-left</helpText>
+            <helpText lang="de-DE">Position der Chat-Schaltfläche: bottom-right, bottom-left</helpText>
+        </input-field>
+    </card>
+</config>

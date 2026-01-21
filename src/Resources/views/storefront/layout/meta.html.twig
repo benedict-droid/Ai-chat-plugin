@@ -1,0 +1,538 @@
+{% sw_extends '@Storefront/storefront/layout/meta.html.twig' %}
+
+{% block layout_head_stylesheet %}
+    {{ parent() }}
+    
+    {# Inline CSS for Chat Widget #}
+    <style>
+        :root {
+            --agentic-primary-color: #007bff;
+            --agentic-primary-hover: #0056b3;
+            --agentic-text-dark: #333;
+            --agentic-text-light: #666;
+            --agentic-bg-user: #007bff;
+            --agentic-bg-bot: #f1f3f5;
+            --agentic-border: #e1e4e8;
+            --agentic-shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        .agentic-chat-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--agentic-primary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px var(--agentic-shadow);
+            transition: all 0.3s ease;
+            z-index: 9998;
+        }
+
+        .agentic-chat-toggle:hover {
+            background: var(--agentic-primary-hover);
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px var(--agentic-shadow);
+        }
+
+        .agentic-chat-toggle svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        .agentic-chat-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 380px;
+            height: 600px;
+            max-height: calc(100vh - 40px);
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 9999;
+            animation: slideUp 0.3s ease;
+        }
+
+        @media (max-width: 480px) {
+            .agentic-chat-container {
+                width: calc(100vw - 20px);
+                height: calc(100vh - 20px);
+                bottom: 10px;
+                right: 10px;
+                border-radius: 12px;
+            }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .agentic-chat-header {
+            background: var(--agentic-primary-color);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .agentic-chat-header-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .agentic-chat-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .agentic-chat-title h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .agentic-chat-status {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .agentic-chat-close {
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .agentic-chat-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .agentic-chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .agentic-chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .agentic-chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .agentic-chat-messages::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+        }
+
+        .agentic-chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #aaa;
+        }
+
+        .agentic-message {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .agentic-message-user {
+            justify-content: flex-end;
+        }
+
+        .agentic-message-user .agentic-message-content {
+            background: var(--agentic-bg-user);
+            color: white;
+            border-radius: 18px 18px 4px 18px;
+        }
+
+        .agentic-message-bot {
+            justify-content: flex-start;
+        }
+
+        .agentic-message-bot .agentic-message-content {
+            background: var(--agentic-bg-bot);
+            color: var(--agentic-text-dark);
+            border-radius: 18px 18px 18px 4px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .agentic-message-content {
+            max-width: 75%;
+            padding: 12px 16px;
+            line-height: 1.5;
+            font-size: 14px;
+            word-wrap: break-word;
+        }
+
+        .agentic-typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+            background: var(--agentic-bg-bot);
+            border-radius: 18px;
+            width: fit-content;
+            margin: 0 20px 10px 20px;
+        }
+
+        .agentic-typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--agentic-text-light);
+            animation: typing 1.4s infinite;
+        }
+
+        .agentic-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .agentic-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-8px); }
+        }
+
+        .agentic-chat-input-container {
+            border-top: 1px solid var(--agentic-border);
+            background: white;
+            padding: 16px;
+            flex-shrink: 0;
+        }
+
+        .agentic-chat-input-container form {
+            display: flex;
+            gap: 8px;
+        }
+
+        .agentic-chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--agentic-border);
+            border-radius: 24px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .agentic-chat-input:focus {
+            border-color: var(--agentic-primary-color);
+        }
+
+        .agentic-chat-input::placeholder {
+            color: #999;
+        }
+
+        .agentic-chat-send {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--agentic-primary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .agentic-chat-send:hover {
+            background: var(--agentic-primary-hover);
+            transform: scale(1.05);
+        }
+
+        .agentic-products-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .agentic-product-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--agentic-border);
+            transition: all 0.2s;
+        }
+
+        .agentic-product-card:hover {
+            box-shadow: 0 4px 12px var(--agentic-shadow);
+            transform: translateY(-2px);
+        }
+
+        .agentic-product-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .agentic-product-image {
+            position: relative;
+            width: 100%;
+            height: 180px;
+            overflow: hidden;
+            background: #f5f5f5;
+        }
+
+        .agentic-product-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+        .agentic-product-image:hover img {
+            transform: scale(1.05);
+        }
+
+        .agentic-product-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .agentic-product-badge.out-of-stock {
+            background: #dc3545;
+            color: white;
+        }
+
+        .agentic-product-info {
+            padding: 14px;
+        }
+
+        .agentic-product-name {
+            margin: 0 0 6px 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--agentic-text-dark);
+            line-height: 1.3;
+        }
+
+        .agentic-product-number {
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            color: var(--agentic-text-light);
+        }
+
+        .agentic-product-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .agentic-option-badge {
+            padding: 4px 10px;
+            background: #e9ecef;
+            border-radius: 12px;
+            font-size: 11px;
+            color: var(--agentic-text-dark);
+        }
+
+        .agentic-product-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .agentic-product-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--agentic-primary-color);
+        }
+
+        .agentic-product-stock {
+            font-size: 12px;
+            color: #28a745;
+        }
+
+        .agentic-product-detail {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--agentic-border);
+            width: 100%;
+        }
+
+        .agentic-product-detail-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .agentic-product-detail-image {
+            width: 100%;
+            height: 200px;
+            overflow: hidden;
+            background: #f5f5f5;
+        }
+
+        .agentic-product-detail-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .agentic-product-detail-info {
+            padding: 16px;
+        }
+
+        .agentic-product-detail-info h3 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            color: var(--agentic-text-dark);
+        }
+
+        .agentic-product-price-large {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--agentic-primary-color);
+            margin: 12px 0;
+        }
+
+        .agentic-stock-info {
+            font-size: 13px;
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        .agentic-product-cta {
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid var(--agentic-border);
+        }
+
+        .agentic-product-cta span {
+            color: var(--agentic-primary-color);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .agentic-orders-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .agentic-order-card {
+            background: white;
+            border-radius: 10px;
+            padding: 14px;
+            border: 1px solid var(--agentic-border);
+        }
+
+        .agentic-order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .agentic-order-number {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--agentic-text-dark);
+        }
+
+        .agentic-order-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .agentic-order-status-completed,
+        .agentic-order-status-delivered {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .agentic-order-status-pending,
+        .agentic-order-status-processing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .agentic-order-status-cancelled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .agentic-order-date,
+        .agentic-order-total,
+        .agentic-order-items {
+            margin: 4px 0;
+            font-size: 13px;
+            color: var(--agentic-text-light);
+        }
+
+        .agentic-order-total {
+            font-weight: 600;
+            color: var(--agentic-text-dark);
+        }
+
+        .agentic-pagination-info {
+            text-align: center;
+            padding: 10px;
+            font-size: 12px;
+            color: var(--agentic-text-light);
+            font-style: italic;
+        }
+    </style>
+{% endblock %}
+
+{% block layout_head_javascript_tracking %}
+    {{ parent() }}
+    
+    {# Pass plugin configuration to JavaScript #}
+    <script>
+        window.agenticAiConfig = {
+            enabled: {{ config('AgenticAiSupport.config.enabled') ? 'true' : 'false' }},
+            apiEndpoint: '{{ config('AgenticAiSupport.config.apiEndpoint') }}',
+            swAccessKey: '{{ config('AgenticAiSupport.config.swAccessKey') }}',
+            chatTitle: '{{ config('AgenticAiSupport.config.chatTitle') }}',
+            welcomeMessage: '{{ config('AgenticAiSupport.config.welcomeMessage') }}',
+            primaryColor: '{{ config('AgenticAiSupport.config.primaryColor') }}',
+            position: '{{ config('AgenticAiSupport.config.position') }}',
+            shopUrl: '{{ app.request.schemeAndHttpHost }}'
+        };
+    </script>
+{% endblock %}
