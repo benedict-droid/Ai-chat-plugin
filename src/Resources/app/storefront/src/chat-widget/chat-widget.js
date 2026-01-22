@@ -1,7 +1,7 @@
 export default class ChatWidget {
     constructor() {
         this.config = window.agenticAiConfig || {};
-        this.contextToken = sessionStorage.getItem('agenticAiContext') || null;
+        this.contextToken = null; // Will be fetched
         this.isOpen = false;
 
         this.elements = {
@@ -17,9 +17,49 @@ export default class ChatWidget {
         this.init();
     }
 
-    init() {
+    async init() {
         this.attachEventListeners();
         this.applyCustomStyles();
+
+        // Fetch current context token from Shopware API to ensure we have the correct session
+        await this.fetchContextToken();
+    }
+
+    async fetchContextToken() {
+        try {
+            // Use the shop URL to call the Storefront API Context Endpoint
+            // This relies on the browser sending the session cookie automatically
+            const accessKey = this.config.swAccessKey;
+            const shopUrl = this.config.shopUrl;
+
+            if (!accessKey || !shopUrl) {
+                console.error('AgenticAI: Missing configuration (swAccessKey or shopUrl)');
+                return;
+            }
+
+            // Use the custom controller endpoint which is designed for this plugin
+            const response = await fetch('/agentic-ai/context', {
+                method: 'GET',
+                cache: 'no-store', // Prevent caching
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.token) {
+                    this.contextToken = data.token;
+                    // Update sessionStorage just for debugging/reference, but we rely on this fetched token
+                    sessionStorage.setItem('agenticAiContext', this.contextToken);
+                    console.log('AgenticAI: Context token initialized', this.contextToken);
+                }
+            } else {
+                console.warn('AgenticAI: Failed to fetch context token', response.status);
+            }
+        } catch (e) {
+            console.error('AgenticAI: Error fetching context token', e);
+        }
     }
 
     attachEventListeners() {
@@ -49,6 +89,10 @@ export default class ChatWidget {
             this.elements.container.style.display = 'flex';
             this.elements.toggle.style.display = 'none';
             this.elements.input.focus();
+
+            // Refresh context token when opening chat to ensure we have the latest session
+            // forcing a re-fetch in case user logged in/out without page reload
+            this.fetchContextToken();
         } else {
             this.elements.container.style.display = 'none';
             this.elements.toggle.style.display = 'flex';
@@ -69,6 +113,10 @@ export default class ChatWidget {
         this.showTypingIndicator();
 
         try {
+            // CRITICAL: Ensure we have the latest context token before sending
+            // This fixes the race condition where a user logs in and immediately types
+            await this.fetchContextToken();
+
             const response = await this.sendMessage(message);
             this.hideTypingIndicator();
             this.handleResponse(response);
@@ -128,6 +176,9 @@ export default class ChatWidget {
                 break;
             case 'order_list':
                 this.renderOrderList(response.data);
+                break;
+            case 'cart_list':
+                this.renderCartList(response.data);
                 break;
             case 'text':
             default:
@@ -273,6 +324,66 @@ export default class ChatWidget {
         const messageDiv = document.createElement('div');
         messageDiv.className = 'agentic-message agentic-message-bot';
         messageDiv.appendChild(ordersContainer);
+
+        this.elements.messages.appendChild(messageDiv);
+        this.scrollToBottom();
+    }
+
+    renderCartList(data) {
+        if (!data || !data.results || data.results.length === 0) return;
+
+        const cartContainer = document.createElement('div');
+        cartContainer.className = 'agentic-products-container'; // Reuse product container style
+
+        // Header for Cart Total
+        const header = document.createElement('div');
+        header.className = 'agentic-cart-header';
+        header.style.marginBottom = '10px';
+        header.style.fontWeight = 'bold';
+        header.textContent = `Cart Total: €${data.total ? data.total.toFixed(2) : '0.00'}`;
+        cartContainer.appendChild(header);
+
+        data.results.forEach(item => {
+            // Reuse createProductCard logic but slightly modified for cart (e.g., showing quantity)
+            // For now, map item fields to product fields
+            const product = {
+                name: item.name,
+                price: item.price, // This is total price for the line item
+                imageUrl: item.imageUrl,
+                url: '#', // Cart items might not link to product page easily without SEO URL
+                stock: item.quantity, // Hack: Use stock to show quantity for now, or custom HTML
+                productNumber: item.productNumber
+            };
+
+            // Create custom card for cart item to be explicit about Quantity
+            const card = document.createElement('div');
+            card.className = 'agentic-product-card';
+
+            const imageUrl = item.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3C/svg%3E';
+
+            card.innerHTML = `
+                <div class="agentic-product-link" style="cursor: default; text-decoration: none;">
+                    <div class="agentic-product-image">
+                        <img src="${imageUrl}" alt="${item.name}" loading="lazy" />
+                        <span class="agentic-product-badge" style="background-color: #28a745;">Qty: ${item.quantity}</span>
+                    </div>
+                    <div class="agentic-product-info">
+                        <h4 class="agentic-product-name">${item.name}</h4>
+                        ${item.productNumber ? `<p class="agentic-product-number">${item.productNumber}</p>` : ''}
+                        <div class="agentic-product-footer">
+                            <span class="agentic-product-price">Total: €${item.price.toFixed(2)}</span>
+                            <span class="agentic-product-stock">@ €${item.unitPrice ? item.unitPrice.toFixed(2) : ''} / each</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            cartContainer.appendChild(card);
+        });
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'agentic-message agentic-message-bot';
+        messageDiv.appendChild(cartContainer);
 
         this.elements.messages.appendChild(messageDiv);
         this.scrollToBottom();

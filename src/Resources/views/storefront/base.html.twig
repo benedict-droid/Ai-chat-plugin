@@ -1,11 +1,18 @@
 {% sw_extends '@Storefront/storefront/base.html.twig' %}
 
+{# Inject context token consistently using the script block where context is reliable #}
+{% block base_body_script %}
+    {{ parent() }}
+    {# No server-side context injection to prevent 500 errors #}
+{% endblock %}
+
 {% block base_body_inner %}
     {{ parent() }}
     
     {% if config('AgenticAiSupport.config.enabled') %}
         {# AI Chat Widget #}
         <div id="agentic-ai-chat-widget">
+            {# ... (HTML structure remains same) ... #}
             {# Chat Button #}
             <button id="agentic-chat-toggle" class="agentic-chat-toggle" aria-label="Open chat">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -80,9 +87,18 @@
             (function() {
                 if (!window.agenticAiConfig || !window.agenticAiConfig.enabled) return;
 
+                // Helper to get cookie value
+                function getCookie(name) {
+                    const value = `; ${document.cookie}`;
+                    const parts = value.split(`; ${name}=`);
+                    if (parts.length === 2) return parts.pop().split(';').shift();
+                    return null;
+                }
+
                 const ChatWidget = {
                     config: window.agenticAiConfig,
-                    contextToken: sessionStorage.getItem('agenticAiContext') || null,
+                    // Get context token from cookie ONLY - safest method
+                    contextToken: getCookie('sw-context-token') || sessionStorage.getItem('agenticAiContext') || null,
                     isOpen: false,
                     elements: {},
 
@@ -99,6 +115,30 @@
 
                         this.attachEventListeners();
                         this.applyCustomStyles();
+
+                        // Ensure we have a context token (fetch from backend if needed)
+                        this.ensureContextToken();
+                    },
+
+                    async ensureContextToken() {
+                        // If we already have one (e.g. from session storage), good.
+                        // But also try to verify/refresh it from our endpoint to be safe.
+                        if (!this.contextToken) {
+                            try {
+                                const response = await fetch('/agentic-ai/context', {
+                                    // headers: { 'X-Requested-With': 'XMLHttpRequest' } // Removed to prevent 403 if header is stripped
+                                });
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    if (data.token) {
+                                        this.contextToken = data.token;
+                                        sessionStorage.setItem('agenticAiContext', data.token);
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('AgenticAI: Failed to fetch context token', e);
+                            }
+                        }
                     },
 
                     attachEventListeners() {
