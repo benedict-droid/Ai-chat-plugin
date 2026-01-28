@@ -139,6 +139,13 @@ export default class ChatWidget {
             payload.swContextToken = this.contextToken;
         }
 
+        // Add Current Page Context (Product ID detection)
+        const pageContext = this.detectPageContext();
+        if (pageContext) {
+            payload.pageContext = pageContext;
+            console.log('AgenticAI: Sending Page Context', pageContext);
+        }
+
         const response = await fetch(this.config.apiEndpoint, {
             method: 'POST',
             headers: {
@@ -155,6 +162,8 @@ export default class ChatWidget {
     }
 
     handleResponse(response) {
+        console.log('AgenticAI: Received API Response', response);
+
         // Update context token if provided
         if (response.context && response.context.swContextToken) {
             this.contextToken = response.context.swContextToken;
@@ -185,6 +194,68 @@ export default class ChatWidget {
                 // Text already added above
                 break;
         }
+        // Render suggestions if available
+        if (response.suggestions && Array.isArray(response.suggestions) && response.suggestions.length > 0) {
+            console.log('AgenticAI: Rendering suggestions', response.suggestions);
+            this.renderSuggestions(response.suggestions);
+        } else {
+            console.log('AgenticAI: No suggestions found in response');
+        }
+    }
+
+    renderSuggestions(suggestions) {
+        // Use a simple block container for suggestions to avoid flexbox layout issues
+        const suggestionsContainer = document.createElement('div');
+        suggestionsContainer.className = 'agentic-chat-suggestions-container';
+
+        // Inline styles to ensure visibility and proper spacing
+        suggestionsContainer.style.marginTop = '10px';
+        suggestionsContainer.style.marginBottom = '10px';
+        suggestionsContainer.style.display = 'flex';
+        suggestionsContainer.style.flexWrap = 'wrap';
+        suggestionsContainer.style.gap = '8px';
+        suggestionsContainer.style.width = '100%';
+        suggestionsContainer.style.clear = 'both'; // Ensure it sits below floated elements if any
+
+        suggestions.forEach(suggestionText => {
+            console.log('AgenticAI: Creating chip for', suggestionText);
+            const chip = document.createElement('div');
+            chip.className = 'agentic-suggestion-chip';
+            chip.textContent = suggestionText;
+
+            // Inline fallback styles for chips
+            chip.style.padding = '8px 14px';
+            chip.style.backgroundColor = '#e7f5ff';
+            chip.style.color = '#007bff';
+            chip.style.border = '1px solid rgba(0, 123, 255, 0.2)';
+            chip.style.borderRadius = '20px';
+            chip.style.fontSize = '12px';
+            chip.style.cursor = 'pointer';
+            chip.style.whiteSpace = 'nowrap';
+            chip.style.display = 'inline-block'; // Ensure it behaves like a block/chip
+            chip.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+
+            chip.addEventListener('click', () => {
+                // Send the suggestion as a user message
+                this.elements.input.value = suggestionText;
+                this.elements.form.dispatchEvent(new Event('submit'));
+            });
+
+            // Hover effects via JS since inline styles override CSS :hover
+            chip.addEventListener('mouseenter', () => {
+                chip.style.backgroundColor = this.config.primaryColor || '#007bff';
+                chip.style.color = 'white';
+            });
+            chip.addEventListener('mouseleave', () => {
+                chip.style.backgroundColor = '#e7f5ff';
+                chip.style.color = '#007bff';
+            });
+
+            suggestionsContainer.appendChild(chip);
+        });
+
+        this.elements.messages.appendChild(suggestionsContainer);
+        this.scrollToBottom();
     }
 
     addMessage(content, sender) {
@@ -402,5 +473,42 @@ export default class ChatWidget {
         setTimeout(() => {
             this.elements.messages.scrollTop = this.elements.messages.scrollHeight;
         }, 100);
+    }
+
+    detectPageContext() {
+        const context = {};
+
+        // 1. Try to find Server-Side Injected Context (Most Reliable)
+        if (window.agenticAiConfig && window.agenticAiConfig.pageContext && window.agenticAiConfig.pageContext.productId) {
+            console.log('AgenticAI: Found Server-Side Context', window.agenticAiConfig.pageContext);
+            return window.agenticAiConfig.pageContext;
+        }
+
+        // 2. Fallback: Try to find Product ID (Priority: Agentic Custom Tag)
+        const metaId = document.querySelector('meta[name="agentic-product-id"]') ||
+            document.querySelector('meta[itemprop="productID"]') ||
+            document.querySelector('meta[name="product-id"]') ||
+            document.querySelector('input[name="product-id"]');
+
+        if (metaId) {
+            context.productId = metaId.content || metaId.value;
+        }
+
+        // 2. Try to find Product Name
+        if (context.productId) {
+            const metaName = document.querySelector('meta[name="agentic-product-name"]') ||
+                document.querySelector('meta[property="og:title"]') ||
+                document.querySelector('meta[itemprop="name"]');
+
+            if (metaName) {
+                context.productName = metaName.content;
+            } else {
+                // Fallback: H1 usually contains product name on PDP
+                const h1 = document.querySelector('h1'); // Generic H1
+                if (h1) context.productName = h1.textContent.trim();
+            }
+        }
+
+        return context.productId ? context : null;
     }
 }

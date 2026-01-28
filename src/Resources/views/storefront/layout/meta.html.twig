@@ -3,6 +3,12 @@
 {% block layout_head_stylesheet %}
     {{ parent() }}
     
+    {# Agentic AI Context Tags - Guaranteed Product ID Source #}
+    {% if page.product is defined %}
+        <meta name="agentic-product-id" content="{{ page.product.id }}">
+        <meta name="agentic-product-name" content="{{ page.product.translated.name|default(page.product.name) }}">
+    {% endif %}
+    
     {# Inline CSS for Chat Widget #}
     <style>
         :root {
@@ -516,6 +522,32 @@
             color: var(--agentic-text-light);
             font-style: italic;
         }
+        .agentic-chat-suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+            padding: 0 4px;
+        }
+
+        .agentic-suggestion-chip {
+            background: #e7f5ff;
+            color: var(--agentic-primary-color);
+            border: 1px solid rgba(0, 123, 255, 0.2);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .agentic-suggestion-chip:hover {
+            background: var(--agentic-primary-color);
+            color: white;
+            border-color: var(--agentic-primary-color);
+            transform: translateY(-1px);
+        }
     </style>
 {% endblock %}
 
@@ -532,7 +564,80 @@
             welcomeMessage: '{{ config('AgenticAiSupport.config.welcomeMessage') }}',
             primaryColor: '{{ config('AgenticAiSupport.config.primaryColor') }}',
             position: '{{ config('AgenticAiSupport.config.position') }}',
-            shopUrl: '{{ app.request.schemeAndHttpHost }}'
+            shopUrl: '{{ app.request.schemeAndHttpHost }}',
+            pageContext: {
+                {% if page.product is defined %}
+                productId: '{{ page.product.id }}',
+                productName: '{{ page.product.translated.name|default(page.product.name)|e('js') }}'
+                {% endif %}
+            }
         };
+
+        // [AGENTIC PATCH V3] Universal Context Injector (Fetch + XHR)
+        // Ensures context is always sent, regardless of cache or transport method.
+        (function() {
+            const getContext = () => {
+                const metaId = document.querySelector('meta[name="agentic-product-id"]');
+                const metaName = document.querySelector('meta[name="agentic-product-name"]');
+                if (metaId && metaId.content) {
+                    return {
+                        productId: metaId.content,
+                        productName: metaName ? metaName.content : 'Current Product'
+                    };
+                }
+                return null;
+            };
+
+            const isChatRequest = (url) => {
+                return url && (
+                    url.includes('agentic-ai/chat') || 
+                    url.includes(window.agenticAiConfig.apiEndpoint)
+                );
+            };
+
+            // 1. Intercept XMLHttpRequest (Standard Shopware Client)
+            const originalOpen = XMLHttpRequest.prototype.open;
+            const originalSend = XMLHttpRequest.prototype.send;
+            
+            XMLHttpRequest.prototype.open = function(method, url) {
+                this._targetUrl = url; // Store for send() check
+                return originalOpen.apply(this, arguments);
+            };
+            
+            XMLHttpRequest.prototype.send = function(body) {
+                if (this._targetUrl && isChatRequest(this._targetUrl) && body) {
+                    try {
+                        const pageContext = getContext();
+                        if (pageContext) {
+                            const payload = JSON.parse(body);
+                            payload.pageContext = pageContext;
+                            console.log('[AgenticPatch] [XHR] Injected Context:', pageContext);
+                            arguments[0] = JSON.stringify(payload);
+                        }
+                    } catch (e) { console.warn('[AgenticPatch] XHR Error:', e); }
+                }
+                return originalSend.apply(this, arguments);
+            };
+
+            // 2. Intercept window.fetch (Modern/Fallback Client)
+            const originalFetch = window.fetch;
+            window.fetch = async function(resource, config) {
+                let url = resource;
+                if (resource instanceof Request) url = resource.url;
+                
+                if (isChatRequest(url) && config && config.body) {
+                    try {
+                        const pageContext = getContext();
+                        if (pageContext) {
+                            const payload = JSON.parse(config.body);
+                            payload.pageContext = pageContext;
+                            config.body = JSON.stringify(payload);
+                            console.log('[AgenticPatch] [Fetch] Injected Context:', pageContext);
+                        }
+                    } catch (e) { console.warn('[AgenticPatch] Fetch Error:', e); }
+                }
+                return originalFetch.apply(this, arguments);
+            };
+        })();
     </script>
 {% endblock %}

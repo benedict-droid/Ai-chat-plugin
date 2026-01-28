@@ -10,18 +10,17 @@
     {{ parent() }}
     
     {% if config('AgenticAiSupport.config.enabled') %}
-        {# AI Chat Widget #}
-        <div id="agentic-ai-chat-widget">
-            {# ... (HTML structure remains same) ... #}
+        {# AI Chat Widget - V2 (Updated IDs to bypass cache/old JS) #}
+        <div id="agentic-ai-chat-widget-v2">
             {# Chat Button #}
-            <button id="agentic-chat-toggle" class="agentic-chat-toggle" aria-label="Open chat">
+            <button id="agentic-chat-toggle-v2" class="agentic-chat-toggle" aria-label="Open chat">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
             </button>
 
             {# Chat Window #}
-            <div id="agentic-chat-container" class="agentic-chat-container" style="display: none;">
+            <div id="agentic-chat-container-v2" class="agentic-chat-container" style="display: none;">
                 {# Chat Header #}
                 <div class="agentic-chat-header">
                     <div class="agentic-chat-header-content">
@@ -37,7 +36,7 @@
                             <span class="agentic-chat-status">Online</span>
                         </div>
                     </div>
-                    <button id="agentic-chat-close" class="agentic-chat-close" aria-label="Close chat">
+                    <button id="agentic-chat-close-v2" class="agentic-chat-close" aria-label="Close chat">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
                             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -46,7 +45,7 @@
                 </div>
 
                 {# Chat Messages #}
-                <div id="agentic-chat-messages" class="agentic-chat-messages">
+                <div id="agentic-chat-messages-v2" class="agentic-chat-messages">
                     <div class="agentic-message agentic-message-bot">
                         <div class="agentic-message-content">
                             {{ config('AgenticAiSupport.config.welcomeMessage') }}
@@ -55,7 +54,7 @@
                 </div>
 
                 {# Typing Indicator #}
-                <div id="agentic-typing-indicator" class="agentic-typing-indicator" style="display: none;">
+                <div id="agentic-typing-indicator-v2" class="agentic-typing-indicator" style="display: none;">
                     <div class="agentic-typing-dot"></div>
                     <div class="agentic-typing-dot"></div>
                     <div class="agentic-typing-dot"></div>
@@ -63,10 +62,10 @@
 
                 {# Chat Input #}
                 <div class="agentic-chat-input-container">
-                    <form id="agentic-chat-form">
+                    <form id="agentic-chat-form-v2">
                         <input 
                             type="text" 
-                            id="agentic-chat-input" 
+                            id="agentic-chat-input-v2" 
                             class="agentic-chat-input" 
                             placeholder="Type your message..."
                             autocomplete="off"
@@ -95,7 +94,7 @@
                     return null;
                 }
 
-                const ChatWidget = {
+                const ChatWidgetV2 = {
                     config: window.agenticAiConfig,
                     // Get context token from cookie ONLY - safest method
                     contextToken: getCookie('sw-context-token') || sessionStorage.getItem('agenticAiContext') || null,
@@ -104,14 +103,19 @@
 
                     init() {
                         this.elements = {
-                            toggle: document.getElementById('agentic-chat-toggle'),
-                            close: document.getElementById('agentic-chat-close'),
-                            container: document.getElementById('agentic-chat-container'),
-                            messages: document.getElementById('agentic-chat-messages'),
-                            form: document.getElementById('agentic-chat-form'),
-                            input: document.getElementById('agentic-chat-input'),
-                            typingIndicator: document.getElementById('agentic-typing-indicator')
+                            toggle: document.getElementById('agentic-chat-toggle-v2'),
+                            close: document.getElementById('agentic-chat-close-v2'),
+                            container: document.getElementById('agentic-chat-container-v2'),
+                            messages: document.getElementById('agentic-chat-messages-v2'),
+                            form: document.getElementById('agentic-chat-form-v2'),
+                            input: document.getElementById('agentic-chat-input-v2'),
+                            typingIndicator: document.getElementById('agentic-typing-indicator-v2')
                         };
+
+                        if (!this.elements.toggle) {
+                            console.error('AgenticAI V2: Missing elements');
+                            return;
+                        }
 
                         this.attachEventListeners();
                         this.applyCustomStyles();
@@ -121,12 +125,10 @@
                     },
 
                     async ensureContextToken() {
-                        // If we already have one (e.g. from session storage), good.
-                        // But also try to verify/refresh it from our endpoint to be safe.
                         if (!this.contextToken) {
                             try {
                                 const response = await fetch('/agentic-ai/context', {
-                                    // headers: { 'X-Requested-With': 'XMLHttpRequest' } // Removed to prevent 403 if header is stripped
+                                    // headers: { 'X-Requested-With': 'XMLHttpRequest' }
                                 });
                                 if (response.ok) {
                                     const data = await response.json();
@@ -222,21 +224,120 @@
                             sessionStorage.setItem('agenticAiContext', this.contextToken);
                         }
 
-                        if (response.message) {
-                            this.addMessage(response.message, 'bot');
-                        }
+                        // Create a unified bubble content container
+                        const unifiedContent = document.createElement('div');
+                        unifiedContent.className = 'agentic-message-content';
+                        unifiedContent.style.display = 'flex';
+                        unifiedContent.style.flexDirection = 'column';
+                        unifiedContent.style.gap = '8px';
+                        
+                        let hasContent = false;
 
+                        // 1. Build Data Element (List/Detail)
+                        let dataElement = null;
                         switch (response.type) {
                             case 'product_list':
-                                this.renderProductList(response.data);
+                                if (this.buildProductList) dataElement = this.buildProductList(response.data);
+                                else this.renderProductList(response.data); 
                                 break;
                             case 'product_detail':
-                                this.renderProductDetail(response.data);
+                                if (this.buildProductDetail) dataElement = this.buildProductDetail(response.data);
+                                else this.renderProductDetail(response.data);
                                 break;
                             case 'order_list':
-                                this.renderOrderList(response.data);
+                                this.renderOrderList(response.data); // Keep legacy
+                                break;
+                            case 'cart_list':
+                                this.renderCartList(response.data); // Keep legacy
                                 break;
                         }
+
+                        if (dataElement) {
+                            unifiedContent.appendChild(dataElement);
+                            hasContent = true;
+                        }
+
+                        // 2. Append Text Message
+                        if (response.message) {
+                            const textDiv = document.createElement('div');
+                            // No class 'agentic-message-content' here, as the parent HAS it
+                            textDiv.innerHTML = response.message.replace(/\n/g, '<br>');
+                            
+                            if (dataElement) {
+                                textDiv.style.marginTop = '4px';
+                                textDiv.style.paddingTop = '8px';
+                                textDiv.style.borderTop = '1px solid rgba(0,0,0,0.05)'; // Visual separation
+                            }
+                            unifiedContent.appendChild(textDiv);
+                            hasContent = true;
+                        }
+
+                        // 3. Add the unified message to chat
+                        if (hasContent) {
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = 'agentic-message agentic-message-bot';
+                            // messageDiv handles spacing/alignment, unifiedContent provides the "bubble" look
+                            messageDiv.appendChild(unifiedContent);
+                            this.elements.messages.appendChild(messageDiv);
+                            this.scrollToBottom();
+                        }
+
+                        // 4. Render Suggestions LAST
+                        if (response.suggestions && Array.isArray(response.suggestions) && response.suggestions.length > 0) {
+                            this.renderSuggestions(response.suggestions);
+                        }
+                    },
+
+                    renderSuggestions(suggestions) {
+                        // Use a simple block container for suggestions
+                        const suggestionsContainer = document.createElement('div');
+                        suggestionsContainer.className = 'agentic-chat-suggestions-container';
+                        
+                        // Inline styles
+                        suggestionsContainer.style.marginTop = '10px';
+                        suggestionsContainer.style.marginBottom = '10px';
+                        suggestionsContainer.style.display = 'flex';
+                        suggestionsContainer.style.flexWrap = 'wrap';
+                        suggestionsContainer.style.gap = '8px';
+                        suggestionsContainer.style.width = '100%';
+                        suggestionsContainer.style.clear = 'both'; 
+
+                        suggestions.forEach(suggestionText => {
+                            const chip = document.createElement('div');
+                            chip.className = 'agentic-suggestion-chip';
+                            chip.textContent = suggestionText;
+                            
+                            // Inline fallback styles
+                            chip.style.padding = '8px 14px';
+                            chip.style.backgroundColor = '#e7f5ff';
+                            chip.style.color = '#007bff';
+                            chip.style.border = '1px solid rgba(0, 123, 255, 0.2)';
+                            chip.style.borderRadius = '20px';
+                            chip.style.fontSize = '12px';
+                            chip.style.cursor = 'pointer';
+                            chip.style.whiteSpace = 'nowrap';
+                            chip.style.display = 'inline-block'; 
+                            chip.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+
+                            chip.addEventListener('click', () => {
+                                this.elements.input.value = suggestionText;
+                                this.elements.form.dispatchEvent(new Event('submit'));
+                            });
+                            
+                            chip.addEventListener('mouseenter', () => {
+                                chip.style.backgroundColor = this.config.primaryColor || '#007bff';
+                                chip.style.color = 'white';
+                            });
+                            chip.addEventListener('mouseleave', () => {
+                                chip.style.backgroundColor = '#e7f5ff';
+                                chip.style.color = '#007bff';
+                            });
+
+                            suggestionsContainer.appendChild(chip);
+                        });
+
+                        this.elements.messages.appendChild(suggestionsContainer);
+                        this.scrollToBottom();
                     },
 
                     addMessage(content, sender) {
@@ -252,95 +353,91 @@
                         this.scrollToBottom();
                     },
 
-                    renderProductList(data) {
-                        if (!data || !data.results || data.results.length === 0) return;
+                    // Replaces renderProductList. Returns HTMLElement or null.
+                    buildProductList(data) {
+                        if (!data || !data.results || data.results.length === 0) return null;
 
-                        const productsContainer = document.createElement('div');
-                        productsContainer.className = 'agentic-products-container';
+                        const listContainer = document.createElement('div');
+                        listContainer.className = 'agentic-product-list';
+                        // Inline styles for the list container
+                        listContainer.style.display = 'flex';
+                        listContainer.style.flexDirection = 'column';
+                        listContainer.style.gap = '6px'; // Reduced gap
+                        listContainer.style.width = '100%';
 
                         data.results.forEach(product => {
-                            productsContainer.appendChild(this.createProductCard(product));
+                            listContainer.appendChild(this.createProductListItem(product));
                         });
-
-                        if (data.pagination && data.pagination.hasNextPage) {
-                            const paginationInfo = document.createElement('div');
-                            paginationInfo.className = 'agentic-pagination-info';
-                            paginationInfo.textContent = `Showing ${data.results.length} of ${data.pagination.total} products`;
-                            productsContainer.appendChild(paginationInfo);
-                        }
-
-                        const messageDiv = document.createElement('div');
-                        messageDiv.className = 'agentic-message agentic-message-bot';
-                        messageDiv.appendChild(productsContainer);
-                        this.elements.messages.appendChild(messageDiv);
-                        this.scrollToBottom();
+                        
+                        return listContainer;
                     },
 
-                    createProductCard(product) {
-                        const card = document.createElement('div');
-                        card.className = 'agentic-product-card';
+                    createProductListItem(product) {
+                        const item = document.createElement('div');
+                        item.className = 'agentic-product-list-item';
+                        
+                        // Inline styles for list item - COMPACT VERSION
+                        item.style.display = 'flex';
+                        item.style.justifyContent = 'space-between';
+                        item.style.alignItems = 'center';
+                        item.style.padding = '8px 12px'; // Reduced padding
+                        item.style.backgroundColor = '#fff';
+                        item.style.border = '1px solid #e9ecef';
+                        item.style.borderRadius = '6px'; // Slightly smaller radius
+                        item.style.marginBottom = '0';
+                        item.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                        item.style.transition = 'all 0.2s';
+                        item.style.cursor = 'pointer'; 
+                        
+                        // Hover effect
+                        item.onmouseenter = () => {
+                            item.style.borderColor = this.config.primaryColor || '#007bff';
+                            item.style.transform = 'translateY(-1px)';
+                            item.style.boxShadow = '0 3px 6px rgba(0,0,0,0.1)';
+                        };
+                        item.onmouseleave = () => {
+                            item.style.borderColor = '#e9ecef';
+                            item.style.transform = 'none';
+                            item.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                        };
 
-                        const imageUrl = product.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3C/svg%3E';
+                        const link = document.createElement('a');
+                        link.href = product.url || '#';
+                        link.target = '_blank';
+                        link.textContent = product.name;
+                        link.style.textDecoration = 'none';
+                        link.style.color = this.config.primaryColor || '#007bff';
+                        link.style.fontWeight = '500'; // Slightly lighter weight
+                        link.style.fontSize = '13px'; // Smaller font
+                        link.style.flexGrow = '1';
+                        link.style.marginRight = '8px';
+                        link.style.overflow = 'hidden';
+                        link.style.textOverflow = 'ellipsis';
+                        link.style.display = '-webkit-box';
+                        link.style.webkitLineClamp = '2';
+                        link.style.webkitBoxOrient = 'vertical';
+                        
+                        const priceSpan = document.createElement('span');
+                        priceSpan.textContent = `€${product.price ? product.price.toFixed(2) : '0.00'}`;
+                        priceSpan.style.fontWeight = 'bold';
+                        priceSpan.style.color = '#333';
+                        priceSpan.style.fontSize = '13px'; // Smaller font
+                        priceSpan.style.whiteSpace = 'nowrap';
+                        priceSpan.style.backgroundColor = '#f8f9fa';
+                        priceSpan.style.padding = '2px 6px'; // Reduced padding
+                        priceSpan.style.borderRadius = '4px';
 
-                        card.innerHTML = `
-                            <a href="${product.url || '#'}" class="agentic-product-link" target="_blank">
-                                <div class="agentic-product-image">
-                                    <img src="${imageUrl}" alt="${product.name}" loading="lazy" />
-                                    ${product.stock > 0 ? '' : '<span class="agentic-product-badge out-of-stock">Out of Stock</span>'}
-                                </div>
-                                <div class="agentic-product-info">
-                                    <h4 class="agentic-product-name">${product.name}</h4>
-                                    ${product.productNumber ? `<p class="agentic-product-number">${product.productNumber}</p>` : ''}
-                                    ${product.options && product.options.length > 0 ? `
-                                        <div class="agentic-product-options">
-                                            ${product.options.map(opt => `<span class="agentic-option-badge">${opt.option}</span>`).join('')}
-                                        </div>
-                                    ` : ''}
-                                    <div class="agentic-product-footer">
-                                        <span class="agentic-product-price">€${product.price.toFixed(2)}</span>
-                                        ${product.stock > 0 ? `<span class="agentic-product-stock">${product.stock} in stock</span>` : ''}
-                                    </div>
-                                </div>
-                            </a>
-                        `;
-                        return card;
+                        item.appendChild(link);
+                        item.appendChild(priceSpan);
+                        
+                        return item;
                     },
 
-                    renderProductDetail(product) {
-                        if (!product) return;
-
-                        const detailContainer = document.createElement('div');
-                        detailContainer.className = 'agentic-product-detail';
-
-                        const imageUrl = product.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3C/svg%3E';
-
-                        detailContainer.innerHTML = `
-                            <a href="${product.url || '#'}" class="agentic-product-detail-link" target="_blank">
-                                <div class="agentic-product-detail-image">
-                                    <img src="${imageUrl}" alt="${product.name}" />
-                                </div>
-                                <div class="agentic-product-detail-info">
-                                    <h3>${product.name}</h3>
-                                    ${product.productNumber ? `<p class="agentic-product-number">${product.productNumber}</p>` : ''}
-                                    <div class="agentic-product-price-large">€${product.price.toFixed(2)}</div>
-                                    ${product.stock !== undefined ? `<p class="agentic-stock-info">${product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}</p>` : ''}
-                                    ${product.options && product.options.length > 0 ? `
-                                        <div class="agentic-product-options">
-                                            ${product.options.map(opt => `<div><strong>${opt.group}:</strong> ${opt.option}</div>`).join('')}
-                                        </div>
-                                    ` : ''}
-                                    <div class="agentic-product-cta">
-                                        <span>View full details →</span>
-                                    </div>
-                                </div>
-                            </a>
-                        `;
-
-                        const messageDiv = document.createElement('div');
-                        messageDiv.className = 'agentic-message agentic-message-bot';
-                        messageDiv.appendChild(detailContainer);
-                        this.elements.messages.appendChild(messageDiv);
-                        this.scrollToBottom();
+                    // Replaces renderProductDetail. Returns HTMLElement or null.
+                    buildProductDetail(product) {
+                        if (!product) return null;
+                        // Reuse the list item logic for detail as requested (minimal detail)
+                        return this.createProductListItem(product);
                     },
 
                     renderOrderList(data) {
@@ -373,6 +470,52 @@
                         this.scrollToBottom();
                     },
 
+                     renderCartList(data) {
+                        if (!data || !data.results || data.results.length === 0) return;
+
+                        const cartContainer = document.createElement('div');
+                        cartContainer.className = 'agentic-products-container';
+
+                        const header = document.createElement('div');
+                        header.className = 'agentic-cart-header';
+                        header.style.marginBottom = '10px';
+                        header.style.fontWeight = 'bold';
+                        header.textContent = `Cart Total: €${data.total ? data.total.toFixed(2) : '0.00'}`;
+                        cartContainer.appendChild(header);
+
+                        data.results.forEach(item => {
+                            const imageUrl = item.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3C/svg%3E';
+
+                            const card = document.createElement('div');
+                            card.className = 'agentic-product-card';
+                            card.innerHTML = `
+                                <div class="agentic-product-link" style="cursor: default; text-decoration: none;">
+                                    <div class="agentic-product-image">
+                                        <img src="${imageUrl}" alt="${item.name}" loading="lazy" />
+                                        <span class="agentic-product-badge" style="background-color: #28a745;">Qty: ${item.quantity}</span>
+                                    </div>
+                                    <div class="agentic-product-info">
+                                        <h4 class="agentic-product-name">${item.name}</h4>
+                                        ${item.productNumber ? `<p class="agentic-product-number">${item.productNumber}</p>` : ''}
+                                        <div class="agentic-product-footer">
+                                            <span class="agentic-product-price">Total: €${item.price.toFixed(2)}</span>
+                                            <span class="agentic-product-stock">@ €${item.unitPrice ? item.unitPrice.toFixed(2) : ''} / each</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+
+                            cartContainer.appendChild(card);
+                        });
+
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'agentic-message agentic-message-bot';
+                        messageDiv.appendChild(cartContainer);
+
+                        this.elements.messages.appendChild(messageDiv);
+                        this.scrollToBottom();
+                    },
+
                     showTypingIndicator() {
                         this.elements.typingIndicator.style.display = 'flex';
                         this.scrollToBottom();
@@ -391,9 +534,9 @@
 
                 // Initialize when DOM is ready
                 if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', () => ChatWidget.init());
+                    document.addEventListener('DOMContentLoaded', () => ChatWidgetV2.init());
                 } else {
-                    ChatWidget.init();
+                    ChatWidgetV2.init();
                 }
             })();
         </script>

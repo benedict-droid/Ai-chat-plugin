@@ -2,7 +2,7 @@
     "name": "custom/agentic-ai-support",
     "description": "AI-powered customer support chat widget for Shopware 6",
     "type": "shopware-platform-plugin",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "license": "MIT",
     "authors": [
         {
