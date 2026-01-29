@@ -45,7 +45,7 @@
             <name>welcomeMessage</name>
             <label>Welcome Message</label>
             <label lang="de-DE">Willkommensnachricht</label>
-            <defaultValue>Hi! How can I help you today?</defaultValue>
+            <defaultValue>Hi 👋 How can I help you today?</defaultValue>
             <helpText>Initial message shown when chat opens</helpText>
             <helpText lang="de-DE">Anfangsnachricht beim Öffnen des Chats</helpText>
         </input-field>
