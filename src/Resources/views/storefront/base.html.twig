@@ -131,7 +131,7 @@
                             "Look for products", 
                             "Find me tshirts",
                             "Find me speaker",
-                            "Find me jacket"
+                            "Find me jacket",
                             "Check my cart",
                         ];
 
@@ -239,6 +239,7 @@
                         const payload = {
                             message: message,
                             swAccessKey: this.config.swAccessKey,
+                            swLanguageId: '{{ context.languageId }}', // Injected from Twig
                             shopUrl: this.config.shopUrl
                         };
 
