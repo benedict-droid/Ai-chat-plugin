@@ -36,12 +36,20 @@
                             <span class="agentic-chat-status">Online</span>
                         </div>
                     </div>
-                    <button id="agentic-chat-close-v2" class="agentic-chat-close" aria-label="Close chat">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="agentic-chat-clear-v2" class="agentic-chat-close" aria-label="Clear chat" title="Clear History">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                        <button id="agentic-chat-close-v2" class="agentic-chat-close" aria-label="Close chat">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 {# Chat Messages #}
@@ -94,12 +102,18 @@
                     return null;
                 }
 
+                // Helper to delete cookie
+                function deleteCookie(name) {
+                    document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+                }
+
                 const ChatWidgetV2 = {
                     config: window.agenticAiConfig,
                     // Get context token from cookie ONLY - safest method
                     contextToken: getCookie('sw-context-token') || sessionStorage.getItem('agenticAiContext') || null,
                     isOpen: false,
                     elements: {},
+                    STORAGE_KEY: 'agentic_ai_chat_history_v1',
 
                     init() {
                         this.elements = {
@@ -109,7 +123,8 @@
                             messages: document.getElementById('agentic-chat-messages-v2'),
                             form: document.getElementById('agentic-chat-form-v2'),
                             input: document.getElementById('agentic-chat-input-v2'),
-                            typingIndicator: document.getElementById('agentic-typing-indicator-v2')
+                            typingIndicator: document.getElementById('agentic-typing-indicator-v2'),
+                            clearBtn: document.getElementById('agentic-chat-clear-v2')
                         };
 
                         if (!this.elements.toggle) {
@@ -119,10 +134,101 @@
 
                         this.attachEventListeners();
                         this.applyCustomStyles();
-
-                        // Ensure we have a context token (fetch from backend if needed)
                         this.ensureContextToken();
 
+                        // LOAD HISTORY FIRST
+                        const hasHistory = this.loadHistory();
+
+                        if (!hasHistory) {
+                            this.renderWelcomeMessage(); // Was handleDefaultGreeting
+                        } else {
+                            // History exists - check if we are on a NEW product page
+                            this.checkProductContext();
+                        }
+                    },
+
+                    renderWelcomeMessage() {
+                         // [DYNAMIC GREETING LOGIC] (Previously handleDefaultGreeting)
+                        // If we are on a Product Page, override the default welcome message
+                        let suggestionPool = [
+                            "Inquire about products", 
+                            "Find me products", 
+                            "Look for products", 
+                            "Find me tshirts",
+                            "Find me speaker",
+                            "Find me jacket",
+                            "Check my cart",
+                        ];
+
+                        if (this.config.pageContext && this.config.pageContext.productName) {
+                            const pName = this.config.pageContext.productName;
+                            // Safe check for the first bot message (Welcome Message)
+                            const firstMsg = this.elements.messages.querySelector('.agentic-message-bot .agentic-message-content');
+                            if (firstMsg) {
+                                firstMsg.innerHTML = `Hey there! 👋 Looking for help with <strong>${pName}</strong> or have any questions?`;
+                            }
+                            
+                            // Context-specific suggestions
+                            suggestionPool = [
+                                `Price of this product?`,
+                                `Is this product in stock?`,
+                                "Similar products",
+                                "Specification of this product?",
+                                "What is the overall review of this product?",
+                                "What are the features of this product?"
+                            ];
+                        }
+                        
+                        // Pick 2 Random Suggestions
+                        const selectedSuggestions = suggestionPool
+                            .sort(() => 0.5 - Math.random())
+                            .slice(0, 2);
+                        
+                        this.renderSuggestions(selectedSuggestions);
+                    },
+
+                    checkProductContext() {
+                        // Check if we are on a product page AND have history
+                        if (this.config.pageContext && this.config.pageContext.productName) {
+                            const pName = this.config.pageContext.productName;
+                            const greetingText = `Hey there! 👋 Looking for help with <strong>${pName}</strong> or have any questions?`;
+                            
+                            // 1. Get History Helper
+                            let history = [];
+                            try {
+                                const stored = localStorage.getItem(this.STORAGE_KEY);
+                                if (stored) history = JSON.parse(stored);
+                            } catch(e) {}
+
+                            // 2. Check last message
+                            const lastMsg = history.length > 0 ? history[history.length - 1] : null;
+
+                            // 3. If last message is NOT this greeting, append it
+                            // We use a simple check. If the greeting text is identical, we assume we already greeted.
+                            if (!lastMsg || lastMsg.content !== greetingText) {
+                                // Add visible message
+                                this.addMessage(greetingText, 'bot');
+                                // Save to storage so we don't repeat it on refresh
+                                this.saveMessage(greetingText, 'bot');
+                                
+                                // Render suggestions
+                                const suggestionPool = [
+                                    `Price of this product?`,
+                                    `Is this product in stock?`,
+                                    "Similar products",
+                                    "Specification of this product?",
+                                    "What is the overall review of this product?",
+                                    "What are the features of this product?"
+                                ];
+                                const selectedSuggestions = suggestionPool
+                                    .sort(() => 0.5 - Math.random())
+                                    .slice(0, 2);
+                                this.renderSuggestions(selectedSuggestions);
+                            }
+                        }
+                    },
+
+                    handleDefaultGreeting() {
                         // [DYNAMIC GREETING LOGIC]
                         // If we are on a Product Page, override the default welcome message
                         let suggestionPool = [
@@ -185,6 +291,9 @@
                         this.elements.toggle.addEventListener('click', () => this.toggleChat());
                         this.elements.close.addEventListener('click', () => this.toggleChat());
                         this.elements.form.addEventListener('submit', (e) => this.handleSubmit(e));
+                        if(this.elements.clearBtn) {
+                            this.elements.clearBtn.addEventListener('click', () => this.clearHistory());
+                        }
                     },
 
                     applyCustomStyles() {
@@ -208,6 +317,7 @@
                             this.elements.container.style.display = 'flex';
                             this.elements.toggle.style.display = 'none';
                             this.elements.input.focus();
+                            this.scrollToBottom(); // Scroll on open
                         } else {
                             this.elements.container.style.display = 'none';
                             this.elements.toggle.style.display = 'flex';
@@ -221,6 +331,8 @@
                         if (!message) return;
 
                         this.addMessage(message, 'user');
+                        this.saveMessage(message, 'user'); // SAVE
+
                         this.elements.input.value = '';
                         this.showTypingIndicator();
 
@@ -319,6 +431,9 @@
                             messageDiv.appendChild(unifiedContent);
                             this.elements.messages.appendChild(messageDiv);
                             this.scrollToBottom();
+
+                            // SAVE RESPONSE TO HISTORY
+                            this.saveResponse(response);
                         }
 
                         // 4. Render Suggestions LAST
@@ -390,6 +505,168 @@
                         messageDiv.appendChild(contentDiv);
                         this.elements.messages.appendChild(messageDiv);
                         this.scrollToBottom();
+                    },
+
+                    // ==========================================
+                    // LOCAL STORAGE METHODS
+                    // ==========================================
+                    
+                    loadHistory() {
+                        try {
+                            const stored = localStorage.getItem(this.STORAGE_KEY);
+                            if (!stored) return false;
+
+                            const history = JSON.parse(stored);
+                            if (!Array.isArray(history) || history.length === 0) return false;
+
+                            // If we have history, CLEAR the default elements first (e.g. default welcome msg)
+                            this.elements.messages.innerHTML = ''; 
+
+                            history.forEach(msg => {
+                                if (msg.role === 'user') {
+                                    this.addMessage(msg.content, 'user');
+                                } else if (msg.role === 'bot') {
+                                    // Construct a fake object to reuse handleResponse logic
+                                    // We prevent it from saving again to avoid duplicates
+                                    this.renderStoredResponse(msg);
+                                }
+                            });
+                            
+                            this.scrollToBottom();
+                            return true;
+                        } catch (e) {
+                            console.error('Agentic AI: Failed to load history', e);
+                            localStorage.removeItem(this.STORAGE_KEY); // Corrupt data cleanup
+                            return false;
+                        }
+                    },
+
+                    saveMessage(content, role) {
+                        this.addToStorage({
+                            role: role,
+                            content: content,
+                            timestamp: Date.now()
+                        });
+                    },
+
+                    saveResponse(response) {
+                        // We store the full structured response to re-render products later
+                        this.addToStorage({
+                            role: 'bot',
+                            content: response.message,
+                            type: response.type,
+                            data: response.data,
+                            timestamp: Date.now()
+                        });
+                    },
+
+                    addToStorage(item) {
+                        try {
+                            const stored = localStorage.getItem(this.STORAGE_KEY);
+                            let history = stored ? JSON.parse(stored) : [];
+                            history.push(item);
+                            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(history));
+                        } catch (e) {
+                            console.error('Agentic AI: Failed to save history', e);
+                        }
+                    },
+
+                    renderStoredResponse(msg) {
+                        // Reuse the display logic of handleResponse without the side effects (saving, token updating)
+                         const response = {
+                            message: msg.content,
+                            type: msg.type,
+                            data: msg.data
+                        };
+                        
+                        // We copy-paste the rendering logic here slightly modified to NOT save again
+                        // Or better, we separate rendering from handling. For now, let's reuse handleResponse carefully.
+                        // Actually, handleResponse calls saveResponse. We should refactor or just copy rendering logic.
+                        // Use copy for safety to avoid infinite save loops.
+
+                        const unifiedContent = document.createElement('div');
+                        unifiedContent.className = 'agentic-message-content';
+                        unifiedContent.style.display = 'flex';
+                        unifiedContent.style.flexDirection = 'column';
+                        unifiedContent.style.gap = '8px';
+                        
+                        let hasContent = false;
+                        let dataElement = null;
+                        
+                        switch (response.type) {
+                            case 'product_list':
+                                if (this.buildProductList) dataElement = this.buildProductList(response.data);
+                                break;
+                            case 'product_detail':
+                                if (this.buildProductDetail) dataElement = this.buildProductDetail(response.data);
+                                break;
+                                // Legacy types skipped for simplicity or could be added
+                        }
+
+                        if (dataElement) {
+                            unifiedContent.appendChild(dataElement);
+                            hasContent = true;
+                        }
+
+                        if (response.message) {
+                            const textDiv = document.createElement('div');
+                            textDiv.innerHTML = response.message.replace(/\n/g, '<br>');
+                            if (dataElement) {
+                                textDiv.style.marginTop = '4px';
+                                textDiv.style.paddingTop = '8px';
+                                textDiv.style.borderTop = '1px solid rgba(0,0,0,0.05)';
+                            }
+                            unifiedContent.appendChild(textDiv);
+                            hasContent = true;
+                        }
+
+                        if (hasContent) {
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = 'agentic-message agentic-message-bot';
+                            messageDiv.appendChild(unifiedContent);
+                            this.elements.messages.appendChild(messageDiv);
+                        }
+                    },
+
+                    async clearHistory() {
+                        if(confirm('Are you sure you want to clear the chat history?')) {
+                            // 1. Call Backend to Clear Session
+                            if (this.contextToken) {
+                                try {
+                                    // Construct clear URL by appending /clear to the configured chat endpoint
+                                    // Assumes apiEndpoint ends in /chat (e.g. http://localhost:8000/chat)
+                                    // Result: http://localhost:8000/chat/clear
+                                    const clearUrl = this.config.apiEndpoint.replace(/\/+$/, '') + '/clear';
+                                    
+                                    await fetch(clearUrl, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ swContextToken: this.contextToken })
+                                    });
+                                } catch (e) {
+                                    console.error('AgenticAI: Failed to clear backend context', e);
+                                }
+                            }
+
+                            // 2. Clear Frontend State
+                            localStorage.removeItem(this.STORAGE_KEY);
+                            this.elements.messages.innerHTML = '';
+                            
+                            // Reset Backend Context by deleting the cookie
+                            deleteCookie('sw-context-token');
+                            this.contextToken = null; 
+                            sessionStorage.removeItem('agenticAiContext');
+
+                            // Restore Welcome Message
+                            this.renderWelcomeMessage();
+                            
+                            // Re-init context for fresh session
+                            setTimeout(() => {
+                                this.ensureContextToken();
+                                // Suggestion logic is handled in renderWelcomeMessage now, 
+                                // but ensureContextToken might be needed before interactions.
+                            }, 500);
+                        }
                     },
 
                     // Replaces renderProductList. Returns HTMLElement or null.
